@@ -1,36 +1,46 @@
 import { PrismaClient, Role } from '@prisma/client';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient({
-  log: ['query', 'info', 'warn', 'error'],
+const adapter = new PrismaBetterSqlite3({
+  url: 'file:./dev.db', // tu DB en la raíz
 });
 
+const prisma = new PrismaClient({ adapter });
+
 async function main() {
-  console.log('🌱 Iniciando el sembrado de datos (seeding)...');
+  console.log('🌱 Iniciando el sembrado de datos...');
 
-  // 1. Limpiar la base de datos (Opcional, evita duplicados al re-ejecutar)
-  // El orden es importante por las llaves foráneas
-  await prisma.postCategory.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.post.deleteMany();
-  await prisma.profile.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.tenant.deleteMany();
+  // --- Limpieza de datos anteriores ---
+  try {
+    // El orden es importante para no romper las llaves foráneas
+    await prisma.postCategory.deleteMany();
+    await prisma.category.deleteMany();
+    await prisma.post.deleteMany();
+    await prisma.profile.deleteMany();
+    await prisma.user.deleteMany();
+    await prisma.tenant.deleteMany();
+    console.log('🗑️  Datos antiguos eliminados.');
+  } catch (error) {
+    console.log(
+      '⚠️  La base de datos estaba vacía o hubo un error al limpiar (continuando...)',
+    );
+  }
 
-  // 2. Encriptar la contraseña para el usuario
+  // --- Encriptación ---
   const salt = await bcrypt.genSalt(10);
   const hashedAdminPassword = await bcrypt.hash('admin123', salt);
   const hashedUserPassword = await bcrypt.hash('user123', salt);
 
-  // 3. Crear un Tenant (Relación 1 a N con User)
+  // --- Creación de datos ---
+
+  // 1. Tenant
   const mainTenant = await prisma.tenant.create({
-    data: {
-      name: 'Corporación Nicaragua Tech',
-    },
+    data: { name: 'Corporación Nicaragua Tech' },
   });
 
-  // 4. Crear un Usuario Administrador con su Perfil (Relación 1 a 1)
-  const adminUser = await prisma.user.create({
+  // 2. Admin
+  await prisma.user.create({
     data: {
       email: 'admin@nigatech.com',
       name: 'Admin Principal',
@@ -38,14 +48,12 @@ async function main() {
       role: Role.ADMIN,
       tenantId: mainTenant.id,
       profile: {
-        create: {
-          bio: 'Administrador del sistema y desarrollador senior.',
-        },
+        create: { bio: 'Administrador del sistema.' },
       },
     },
   });
 
-  // 5. Crear un Usuario Estándar
+  // 3. Usuario Normal
   await prisma.user.create({
     data: {
       email: 'estudiante@uam.com',
@@ -54,35 +62,31 @@ async function main() {
       role: Role.USER,
       tenantId: mainTenant.id,
       profile: {
-        create: {
-          bio: 'Estudiante de 4to año de Ingeniería de Sistemas.',
-        },
+        create: { bio: 'Estudiante de sistemas.' },
       },
     },
   });
 
-  // 6. Crear Categorías para los Posts
+  // 4. Categorías
   const catSoftware = await prisma.category.create({
-    data: { name: 'Desarrollo de Software' },
+    data: { name: 'Desarrollo' },
   });
   const catCyber = await prisma.category.create({
     data: { name: 'Ciberseguridad' },
   });
-  const catDatabase = await prisma.category.create({
-    data: { name: 'Bases de Datos' },
-  });
 
-  // 7. Crear un Post y relacionarlo (Relación N a N mediante PostCategory)
+  // 5. Post
   const post = await prisma.post.create({
     data: {
-      title: 'Guía definitiva de Prisma y Docker en macOS',
+      title: 'Tutorial de Prisma',
     },
   });
 
+  // 6. Relación N-N
   await prisma.postCategory.createMany({
     data: [
       { postId: post.id, categoryId: catSoftware.id },
-      { postId: post.id, categoryId: catDatabase.id },
+      { postId: post.id, categoryId: catCyber.id },
     ],
   });
 
@@ -94,7 +98,7 @@ main()
     await prisma.$disconnect();
   })
   .catch(async (e) => {
-    console.error('❌ Error en el seeding:', e);
+    console.error('❌ Error:', e);
     await prisma.$disconnect();
     process.exit(1);
   });
