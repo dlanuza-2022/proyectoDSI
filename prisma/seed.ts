@@ -1,7 +1,9 @@
 import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
+});
 
 async function main() {
   console.log('🌱 Iniciando el sembrado de datos (seeding)...');
