@@ -14,6 +14,7 @@ datasource db {
 }
 
 
+// Definición del modelo de Usuario con relación 1 a 1 y 1 a N
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
@@ -23,6 +24,47 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   role      Role     @default(USER)
+  profile   Profile?
+  tenantId  Int
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+// Relación 1 a 1 (One-to-One)
+model Profile {
+  id     Int    @id @default(autoincrement())
+  bio    String?
+  userId Int    @unique 
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+// Relación 1 a N (One-to-Many)
+model Tenant {
+  id    Int    @id @default(autoincrement())
+  name  String
+  users User[]
+}
+
+// Relación N a N (Many-to-Many) explícita con tabla intermedia
+model Post {
+  id         Int            @id @default(autoincrement())
+  title      String
+  categories PostCategory[] 
+}
+
+model Category {
+  id    Int            @id @default(autoincrement())
+  name  String
+  posts PostCategory[] 
+}
+
+// Tabla intermedia para N a N
+model PostCategory {
+  postId     Int
+  categoryId Int
+  post       Post     @relation(fields: [postId], references: [id])
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@id([postId, categoryId]) 
 }
 
 enum Role {
